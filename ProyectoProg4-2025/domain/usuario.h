@@ -1,17 +1,14 @@
-#ifndef DOMAIN_USUARIO_H_
-#define DOMAIN_USUARIO_H_
-
-#define ADMINISTRADOR 1
-#define CLIENTE 2
+#ifndef USUARIO_H
+#define USUARIO_H
 
 typedef struct {
     char nombre[50];
     char dni[10];
     char contrasena[50];
-    int rol; // 1 = Administrador, 2 = Cliente
+    int rol; // 0 = Cliente, 1 = Admin
 } Usuario;
 
-Usuario registrarUsuario();
-void iniciarSesion();
+int iniciar_sesion(sqlite3 *db, const char *dni, const char *contrasena, int *rol);
+int registrar_usuario(sqlite3 *db, const char *nombre, const char *dni, const char *contrasena, int rol);
 
-#endif /* DOMAIN_USUARIO_H_ */
+#endif
