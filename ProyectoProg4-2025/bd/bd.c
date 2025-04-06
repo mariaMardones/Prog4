@@ -1,115 +1,308 @@
-#include <stdio.h>
 #include "bd.h"
+#include <stdio.h>
+#include <stdlib.h>
 
-#define BD_NOMBRE "hotel.db"
+int conectar_bd(sqlite3 **db) {
+    if (sqlite3_open("hotel.db", db) != SQLITE_OK) {
+        printf("Error al abrir la base de datos: %s\n", sqlite3_errmsg(*db));
+        return 0;
+    }
+    return 1;
+}
 
-int inicializar_bd(sqlite3 **db) {
-	int rc = sqlite3_open(BD_NOMBRE, db);
-	    if (rc) {
-	        fprintf(stderr, "Error al abrir la base de datos: %s\n", sqlite3_errmsg(*db));
-	        return rc;
-	    }
-	    // Eliminamos la creación de tablas si la base de datos ya existe.
-	    printf("Base de datos abierta correctamente.\n");
-
+int crear_tablas(sqlite3 *db) {
     const char *sql_usuarios =
-        "CREATE TABLE IF NOT EXISTS Usuario ("
+        "CREATE TABLE IF NOT EXISTS usuarios ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "nombre TEXT NOT NULL, "
         "dni TEXT UNIQUE NOT NULL, "
         "contrasena TEXT NOT NULL, "
-        "rol INTEGER NOT NULL);";  // 0 = Cliente, 1 = Administrador
+        "rol INTEGER NOT NULL);";
+
+    const char *sql_habitaciones =
+        "CREATE TABLE IF NOT EXISTS habitaciones ("
+        "numero INTEGER PRIMARY KEY, "
+        "precio REAL NOT NULL, "
+        "reservado INTEGER DEFAULT 0);";
 
     const char *sql_reservas =
-        "CREATE TABLE IF NOT EXISTS Reserva ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-        "usuario_id INTEGER, "
-        "habitacion INTEGER NOT NULL, "
-        "fecha TEXT NOT NULL, "
-        "FOREIGN KEY(usuario_id) REFERENCES Usuario(id));";
+        "CREATE TABLE IF NOT EXISTS reservas ("
+        "codigo INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "num_habitacion INTEGER NOT NULL, "
+        "dni_usuario TEXT NOT NULL, "
+        "FOREIGN KEY (num_habitacion) REFERENCES habitaciones(numero), "
+        "FOREIGN KEY (dni_usuario) REFERENCES usuarios(dni));";
 
-    char *err_msg = NULL;
-    if (sqlite3_exec(*db, sql_usuarios, 0, 0, &err_msg) != SQLITE_OK) {
-        fprintf(stderr, "Error al crear la tabla Usuario: %s\n", err_msg);
-        sqlite3_free(err_msg);
-        return 1;
-    }
-    if (sqlite3_exec(*db, sql_reservas, 0, 0, &err_msg) != SQLITE_OK) {
-        fprintf(stderr, "Error al crear la tabla Reserva: %s\n", err_msg);
-        sqlite3_free(err_msg);
-        return 1;
+    char *errmsg = NULL;
+
+    if (sqlite3_exec(db, sql_usuarios, 0, 0, &errmsg) != SQLITE_OK) {
+        printf("Error creando tabla usuarios: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        return 0;
     }
 
-    return 0;
-}
-
-void cerrar_bd(sqlite3 *db) {
-    sqlite3_close(db);
-}
-
-int registrar_usuario(sqlite3 *db, const char *nombre, const char *dni, const char *contrasena, int rol) {
-    char sql[256];
-    snprintf(sql, sizeof(sql), "INSERT INTO Usuario (nombre, dni, contrasena, rol) VALUES ('%s', '%s', '%s', %d);",
-            nombre, dni, contrasena, rol);
-
-    char *err_msg = NULL;
-    if (sqlite3_exec(db, sql, 0, 0, &err_msg) != SQLITE_OK) {
-        fprintf(stderr, "Error al registrar usuario: %s\n", err_msg);
-        sqlite3_free(err_msg);
-        return 1;
+    if (sqlite3_exec(db, sql_habitaciones, 0, 0, &errmsg) != SQLITE_OK) {
+        printf("Error creando tabla habitaciones: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        return 0;
     }
-    printf("Usuario registrado correctamente en la base de datos.\n");  // Mensaje de depuración
-    return 0;
+
+    if (sqlite3_exec(db, sql_reservas, 0, 0, &errmsg) != SQLITE_OK) {
+        printf("Error creando tabla reservas: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        return 0;
+    }
+
+    return 1;
 }
 
-int iniciar_sesion(sqlite3 *db, const char *dni, const char *contrasena, int *rol) {
+
+int insertar_usuario(sqlite3 *db, const char *nombre, const char *dni, const char *contrasena, int rol) {
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT rol FROM Usuario WHERE dni = ? AND contrasena = ?";
+    const char *sql = "INSERT INTO usuarios (nombre, dni, contrasena, rol) VALUES (?, ?, ?, ?);";
 
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Error en la preparación de la consulta: %s\n", sqlite3_errmsg(db));
-        return rc;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error preparando consulta: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    sqlite3_bind_text(stmt, 1, nombre, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, dni, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, contrasena, -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 4, rol);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        printf("Error insertando usuario: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
+}
+ return 1;
+}
+
+int verificar_login(sqlite3 *db, const char *dni, const char *contrasena, int *rol) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT rol FROM usuarios WHERE dni = ? AND contrasena = ?;";
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error preparando consulta: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
 
     sqlite3_bind_text(stmt, 1, dni, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, contrasena, -1, SQLITE_STATIC);
 
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        *rol = sqlite3_column_int(stmt, 0);  // Recuperamos el rol (0 = cliente, 1 = admin)
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        *rol = sqlite3_column_int(stmt, 0);
         sqlite3_finalize(stmt);
-        return 0;  // Inicio de sesión exitoso
+        return 1;
     } else {
-        printf("Usuario o contraseña incorrectos.\n");
         sqlite3_finalize(stmt);
-        return 1;  // Error de autenticación
+        return 0;
     }
 }
 
-int hacer_reserva(sqlite3 *db, int usuario_id, int habitacion, const char *fecha) {
-    char sql[256];
-    snprintf(sql, sizeof(sql), "INSERT INTO Reserva (usuario_id, habitacion, fecha) VALUES (%d, %d, '%s');",
-             usuario_id, habitacion, fecha);
+int insertar_habitacion(sqlite3 *db, int numero, float precio) {
+    sqlite3_stmt *stmt;
+    const char *sql = "INSERT INTO habitaciones (numero, precio, reservado) VALUES (?, ?, 0);";
 
-    char *err_msg = NULL;
-    if (sqlite3_exec(db, sql, 0, 0, &err_msg) != SQLITE_OK) {
-        fprintf(stderr, "Error al hacer la reserva: %s\n", err_msg);
-        sqlite3_free(err_msg);
-        return 1;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error preparando consulta: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
-    return 0;
+
+    sqlite3_bind_int(stmt, 1, numero);
+    sqlite3_bind_double(stmt, 2, precio);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        printf("Error insertando habitación: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
 }
 
-int cancelar_reserva(sqlite3 *db, int reserva_id) {
-    char sql[256];
-    snprintf(sql, sizeof(sql), "DELETE FROM Reserva WHERE id = %d;", reserva_id);
+int listar_habitaciones(sqlite3 *db) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT numero, precio, reservado FROM habitaciones;";
 
-    char *err_msg = NULL;
-    if (sqlite3_exec(db, sql, 0, 0, &err_msg) != SQLITE_OK) {
-        fprintf(stderr, "Error al cancelar la reserva: %s\n", err_msg);
-        sqlite3_free(err_msg);
-        return 1;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error preparando consulta: %s\n", sqlite3_errmsg(db));
+        return 0;
     }
-    return 0;
+
+    printf("Habitaciones:\n");
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        int reservado = sqlite3_column_int(stmt, 2);
+        printf("Número: %d | Precio: %.2f | Reservado: %s\n",
+            sqlite3_column_int(stmt, 0),
+            sqlite3_column_double(stmt, 1),
+            reservado ? "Sí" : "No");
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
+}
+
+int filtrar_habitaciones_por_precio(sqlite3 *db, float max_precio) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT numero, precio FROM habitaciones WHERE precio <= ? AND reservado = 0;";
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error preparando consulta: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    sqlite3_bind_double(stmt, 1, max_precio);
+
+    printf("Habitaciones disponibles con precio <= %.2f:\n", max_precio);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        printf("Número: %d | Precio: %.2f\n",
+               sqlite3_column_int(stmt, 0),
+               sqlite3_column_double(stmt, 1));
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
+}
+
+int hacer_reserva(sqlite3 *db, int num_habitacion, const char *dni_usuario) {
+    const char *sql1 = "INSERT INTO reservas (num_habitacion, dni_usuario) VALUES (?, ?);";
+    const char *sql2 = "UPDATE habitaciones SET reservado = 1 WHERE numero = ?;";
+
+    sqlite3_stmt *stmt;
+
+    // Insertar reserva
+    if (sqlite3_prepare_v2(db, sql1, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error insertando reserva: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    sqlite3_bind_int(stmt, 1, num_habitacion);
+    sqlite3_bind_text(stmt, 2, dni_usuario, -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        printf("Error ejecutando inserción: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+    sqlite3_finalize(stmt);
+
+    // Actualizar habitación
+    if (sqlite3_prepare_v2(db, sql2, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error actualizando habitación: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    sqlite3_bind_int(stmt, 1, num_habitacion);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        printf("Error ejecutando actualización: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
+}
+
+int cancelar_reserva(sqlite3 *db, int codigo_reserva) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT num_habitacion FROM reservas WHERE codigo = ?;";
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error seleccionando reserva: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    sqlite3_bind_int(stmt, 1, codigo_reserva);
+
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        printf("Reserva no encontrada\n");
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+
+    int num_habitacion = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+
+    // Eliminar reserva
+    const char *sql_del = "DELETE FROM reservas WHERE codigo = ?;";
+    if (sqlite3_prepare_v2(db, sql_del, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error eliminando reserva: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+    sqlite3_bind_int(stmt, 1, codigo_reserva);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    // Marcar habitación como no reservada
+    const char *sql_upd = "UPDATE habitaciones SET reservado = 0 WHERE numero = ?;";
+    if (sqlite3_prepare_v2(db, sql_upd, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error actualizando habitación: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+    sqlite3_bind_int(stmt, 1, num_habitacion);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return 1;
+}
+
+int listar_reservas_usuario(sqlite3 *db, const char *dni_usuario) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT codigo, num_habitacion FROM reservas WHERE dni_usuario = ?;";
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error consultando reservas: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    sqlite3_bind_text(stmt, 1, dni_usuario, -1, SQLITE_STATIC);
+
+    printf("Reservas activas:\n");
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        printf("Código: %d | Habitación: %d\n",
+               sqlite3_column_int(stmt, 0),
+               sqlite3_column_int(stmt, 1));
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
+}
+
+
+int consultar_usuarios(sqlite3 *db) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT id, nombre, dni, rol FROM usuarios;";
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        printf("Error preparando consulta: %s\n", sqlite3_errmsg(db));
+        return 0;
+    }
+
+    printf("\nLista de Usuarios:\n");
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        printf("ID: %d, Nombre: %s, DNI: %s, Rol: %d\n",
+               sqlite3_column_int(stmt, 0),
+               sqlite3_column_text(stmt, 1),
+               sqlite3_column_text(stmt, 2),
+               sqlite3_column_int(stmt, 3));
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
+}
+
+int cerrar_bd(sqlite3 *db) {
+    if (sqlite3_close(db) != SQLITE_OK) {
+        printf("Error al cerrar la base de datos\n");
+        return 0;
+    }
+    return 1;
 }
