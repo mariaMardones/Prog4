@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "menus.h"
-#include "bd.h"
-#include "usuario.h"
+#include "../domain/menus.h"
+#include "../bd/bd.h"
+#include "../domain/usuario.h"
 
 int main() {
     sqlite3 *db;
@@ -30,14 +30,51 @@ int main() {
                     if (usuario.rol == ROL_CLIENTE) {
                         do {
                             subopcion = mostrar_menu_cliente();
-                            // Aquí se llamarán funciones específicas para cliente
-                            printf("Elegiste opción %d como cliente (a implementar)\n", subopcion);
+                            switch (subopcion) {
+                                case 1:
+                                    realizar_reserva_cliente(db, usuario.dni);
+                                    break;
+                                case 2:
+                                    cancelar_reserva_cliente(db, usuario.dni);
+                                    break;
+                                case 3:
+                                    ver_habitaciones_disponibles_cliente(db);
+                                    break;
+                                case 4:
+                                    filtrar_habitaciones_cliente(db);
+                                    break;
+                                case 5:
+                                    consultar_reservas_cliente(db, usuario.dni);
+                                    break;
+                                case 6:
+                                    printf("Sesión cerrada.\n");
+                                    break;
+                                default:
+                                    printf("Opción no válida.\n");
+                            }
                         } while (subopcion != 6);
                     } else if (usuario.rol == ROL_ADMIN) {
                         do {
                             subopcion = mostrar_menu_admin();
-                            // Aquí se llamarán funciones específicas para admin
-                            printf("Elegiste opción %d como admin (a implementar)\n", subopcion);
+                            switch (subopcion) {
+                                case 1:
+                                    visualizar_clientes_admin(db);
+                                    break;
+                                case 2:
+                                    buscar_cliente_por_dni_admin(db);
+                                    break;
+                                case 3:
+                                    cancelar_reserva_admin(db);
+                                    break;
+                                case 4:
+                                    eliminar_cliente_admin(db);
+                                    break;
+                                case 5:
+                                    cerrar_sesion_admin();
+                                    break;
+                                default:
+                                    printf("Opción no válida.\n");
+                            }
                         } while (subopcion != 5);
                     }
 

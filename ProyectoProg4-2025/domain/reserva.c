@@ -1,23 +1,23 @@
 #include "reserva.h"
 #include <stdio.h>
-#include <sqlite3.h>
+#include "../bd/sqlite3.h"
 
-void hacer_reserva(sqlite3 *db, const char *dni, int habitacion, const char *fecha) {
-    char sql[256];
-    snprintf(sql, sizeof(sql),
-        "INSERT INTO Reserva (usuario_id, habitacion, fecha) "
-        "SELECT id, %d, '%s' FROM Usuario WHERE dni = '%s';",
-        habitacion, fecha, dni);
-    sqlite3_exec(db, sql, 0, 0, NULL);
-}
-
-void cancelar_reserva(sqlite3 *db, const char *dni, int habitacion) {
-    char sql[256];
-    snprintf(sql, sizeof(sql),
-        "DELETE FROM Reserva WHERE habitacion = %d AND usuario_id = (SELECT id FROM Usuario WHERE dni = '%s');",
-        habitacion, dni);
-    sqlite3_exec(db, sql, 0, 0, NULL);
-}
+//void hacer_reserva(sqlite3 *db, const char *dni, int habitacion, const char *fecha) {
+//    char sql[256];
+//    snprintf(sql, sizeof(sql),
+//        "INSERT INTO Reserva (usuario_id, habitacion, fecha) "
+//        "SELECT id, %d, '%s' FROM Usuario WHERE dni = '%s';",
+//        habitacion, fecha, dni);
+//    sqlite3_exec(db, sql, 0, 0, NULL);
+//}
+//
+//void cancelar_reserva(sqlite3 *db, const char *dni, int habitacion) {
+//    char sql[256];
+//    snprintf(sql, sizeof(sql),
+//        "DELETE FROM Reserva WHERE habitacion = %d AND usuario_id = (SELECT id FROM Usuario WHERE dni = '%s');",
+//        habitacion, dni);
+//    sqlite3_exec(db, sql, 0, 0, NULL);
+//}
 
 void ver_reservas_activas(sqlite3 *db, const char *dni) {
     const char *sql =

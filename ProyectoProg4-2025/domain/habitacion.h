@@ -1,6 +1,7 @@
 #ifndef HABITACION_H
 #define HABITACION_H
 
+#include "../bd/sqlite3.h"
 typedef struct {
     int numero;
     float precio;
@@ -9,6 +10,7 @@ typedef struct {
 
 void mostrarHabitacion(const Habitacion *h);
 void mostrar_habitaciones_disponibles(sqlite3 *db);
-void filtrar_habitaciones_por_precio(sqlite3 *db, float max_precio);
+extern void filtrar_habitaciones_por_precio(sqlite3 *db, float max_precio);
+
 
 #endif
