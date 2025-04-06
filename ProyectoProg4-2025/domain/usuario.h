@@ -1,14 +1,18 @@
 #ifndef USUARIO_H
 #define USUARIO_H
 
+#include <sqlite3.h>
+
+#define ROL_CLIENTE 0
+#define ROL_ADMIN 1
+
+// Estructura para mantener los datos del usuario conectado
 typedef struct {
-    char nombre[50];
-    char dni[10];
-    char contrasena[50];
-    int rol; // 0 = Cliente, 1 = Admin
+    char dni[20];
+    int rol;
 } Usuario;
 
-int iniciar_sesion(sqlite3 *db, const char *dni, const char *contrasena, int *rol);
-int registrar_usuario(sqlite3 *db, const char *nombre, const char *dni, const char *contrasena, int rol);
+int registrar_usuario(sqlite3 *db);
+int iniciar_sesion(sqlite3 *db, Usuario *usuario);
 
 #endif
